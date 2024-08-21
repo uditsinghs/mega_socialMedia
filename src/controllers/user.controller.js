@@ -17,26 +17,38 @@ export const registerUser = asyncHandler(async (req, res) => {
     return res.status(409).json({ message: "User already exists" });
   }
 
+  // console.log("files comes from local server:" , req.files);
+
   // Handle file uploads safely
   const avatarLocalPath = req.files?.avatar?.[0]?.path;
-  const coverImageLocalPath = req.files?.coverImage?.[0]?.path;
+  // const coverImageLocalPath = req.files?.coverImage?.[0]?.path;
+  let coverImageLocalPath;
+  if (
+    req.files &&
+    Array.isArray(req.files.coverImage) &&
+    req.files.coverImage.length > 0
+  ) {
+    coverImageLocalPath = req.files.coverImage[0].path;
+  }
 
   if (!avatarLocalPath) {
-    return res.status(400).json({ message: "Avatar file is required" });
+    return res.status(400).json({ message: "Avatar file is required " });
   }
 
   // store files in cloudinary
-  const avtar = await uploadOnCloudinary(avatarLocalPath);
+  const avatar = await uploadOnCloudinary(avatarLocalPath);
   const coverImage = await uploadOnCloudinary(coverImageLocalPath);
 
   // check if avtar is not exist
-  if (!avtar) {
-    return res.status(400).json({ message: "Avatar file is required" });
+  if (!avatar) {
+    return res
+      .status(400)
+      .json({ message: "Avatar file is required is store in cloud" });
   }
   // create user
   const user = await User.create({
     fullName,
-    avtar: avtar.url,
+    avatar: avatar.url,
     coverImage: coverImage?.url || "",
     email,
     username: username.toLowerCase(),
