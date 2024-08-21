@@ -8,6 +8,9 @@ export const verifyJWT = asyncHandler(async (req, res, next) => {
       req.cookies?.accessToken ||
       req.header("Authorization")?.replace("Bearer ", "");
 
+      console.log(token);
+      
+
     if (!token) {
       res.status(401).json({ message: "unauthorized " });
     }
@@ -18,13 +21,16 @@ export const verifyJWT = asyncHandler(async (req, res, next) => {
     );
 
     if (!user) {
-      return res.status(404).json({ message: "Invalid access token" });
+      return res.status(404).json({ message: "Invalid access token user not exist" });
     }
+    console.log(user
+    );
+    
     req.user = user;
     next();
   } catch (error) {
     console.log(error);
 
-    return res.status(401).json({ message: "invalid access token" });
+     res.status(401).json({ message: "Invalid access token" });
   }
 });

@@ -3,18 +3,33 @@ import { User } from "../models/user.model.js";
 import uploadOnCloudinary from "../utils/cloudinary.js";
 import { APIResponse } from "../utils/apiResponse.js";
 
+
 const generateAccessTokenAndRefreshToken = async (userId) => {
   try {
+    // Fetch the user by ID
     const user = await User.findById(userId);
-    const accessToken = user.generateAccessToken();
-    const refreshToken = user.generateRefreshToken();
+    
+    // Ensure the user exists
+    if (!user) {
+      throw new Error("User not found");
+    }
+
+    // Generate access and refresh tokens
+    const accessToken =  await user.generateAccessToken();
+    const refreshToken = await  user.generateRefreshToken();
+
+    // Store the refresh token in the user's document
     user.refreshToken = refreshToken;
     await user.save({ validateBeforeSave: false });
+
+    // Return the tokens
     return { accessToken, refreshToken };
   } catch (error) {
-    console.log(error);
+    console.error("Error in token generation:", error);
+    throw new Error("Failed to generate tokens");
   }
 };
+
 export const registerUser = asyncHandler(async (req, res) => {
   const { username, email, password, fullName } = req.body;
 
@@ -84,39 +99,39 @@ export const registerUser = asyncHandler(async (req, res) => {
 });
 
 export const loginUser = asyncHandler(async (req, res) => {
-  // take data from frontend like username , gmail,password
-  // is this valid  user or not
-  // kya usne required field fill kr rkhi hai
-  // generate access token
-  //  now compare password for login
-
   const { email, password, username } = req.body;
 
   if (!email || !password) {
-    res.status(409).json({ message: "all fields are required" });
-  }
-  // find user from database for the basis of email or password
-  const user = await User.findOne({ $or: [{ email }, { password }] });
-  // check user is able to login or not
-  if (!user) {
-    return res.status(404).json({ message: "user does not exist" });
-  }
-  // now compare the password for login
-  const isPasswordValid = await user.isPasswordCorrect(password);
-  if (!isPasswordValid) {
-    return res.status(401).json({ message: "invalid user crendential" });
+    return res.status(400).json({ message: "All fields are required" });
   }
 
-  const { refreshToken, accessToken } =
-    await generateAccessTokenAndRefreshToken(user._id);
+  const user = await User.findOne({ $or: [{ email }, { username }] });
+  if (!user) {
+    return res.status(404).json({ message: "User does not exist" });
+  }
+
+  const isPasswordValid = await user.isPasswordCorrect(password);
+  if (!isPasswordValid) {
+    return res.status(401).json({ message: "Invalid user credentials" });
+  }
+
+  const { refreshToken, accessToken } = await generateAccessTokenAndRefreshToken(user._id);
+  
+    
+    
+
+  if (!refreshToken || !accessToken) {
+    return res.status(500).json({ message: "Error generating tokens" });
+  }
 
   const loggedInUser = await User.findById(user._id).select(
     "-password -refreshToken"
   );
-  // send token in cookies
+
   const options = {
     httpOnly: true,
     secure: true,
+    sameSite: "Strict",
   };
 
   return res
@@ -131,13 +146,15 @@ export const loginUser = asyncHandler(async (req, res) => {
           accessToken,
           refreshToken,
         },
-        "User logged in Successfully"
+        "User logged in successfully"
       )
     );
 });
 
-// logout user
+
+
 export const logoutUser = asyncHandler(async (req, res) => {
+  
   await User.findByIdAndUpdate(req.user._id, {
     $set: {
       refreshToken: undefined,
