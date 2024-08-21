@@ -78,9 +78,9 @@ userSchema.methods.generateRefreshToken = async function () {
     {
       _id: this._id,
     },
-    process.env.ACCESS_TOKEN_SECREAT,
+    process.env.REFRESH_TOKEN_SECREAT,
     {
-      expiresIn: process.env.ACCESS_TOKEN_EXPIRY,
+      expiresIn: process.env.REFRESH_TOKEN_EXPIRY,  
     }
   );
 };

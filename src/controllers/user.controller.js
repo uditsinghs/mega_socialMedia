@@ -2,21 +2,21 @@ import asyncHandler from "../utils/asyncHandler.js";
 import { User } from "../models/user.model.js";
 import uploadOnCloudinary from "../utils/cloudinary.js";
 import { APIResponse } from "../utils/apiResponse.js";
-
+import jwt from "jsonwebtoken";
 
 const generateAccessTokenAndRefreshToken = async (userId) => {
   try {
     // Fetch the user by ID
     const user = await User.findById(userId);
-    
+
     // Ensure the user exists
     if (!user) {
       throw new Error("User not found");
     }
 
     // Generate access and refresh tokens
-    const accessToken =  await user.generateAccessToken();
-    const refreshToken = await  user.generateRefreshToken();
+    const accessToken = await user.generateAccessToken();
+    const refreshToken = await user.generateRefreshToken();
 
     // Store the refresh token in the user's document
     user.refreshToken = refreshToken;
@@ -101,7 +101,7 @@ export const registerUser = asyncHandler(async (req, res) => {
 export const loginUser = asyncHandler(async (req, res) => {
   const { email, password, username } = req.body;
 
-  if (!email || !password) {
+  if (!email && !password) {
     return res.status(400).json({ message: "All fields are required" });
   }
 
@@ -115,10 +115,8 @@ export const loginUser = asyncHandler(async (req, res) => {
     return res.status(401).json({ message: "Invalid user credentials" });
   }
 
-  const { refreshToken, accessToken } = await generateAccessTokenAndRefreshToken(user._id);
-  
-    
-    
+  const { refreshToken, accessToken } =
+    await generateAccessTokenAndRefreshToken(user._id);
 
   if (!refreshToken || !accessToken) {
     return res.status(500).json({ message: "Error generating tokens" });
@@ -151,10 +149,7 @@ export const loginUser = asyncHandler(async (req, res) => {
     );
 });
 
-
-
 export const logoutUser = asyncHandler(async (req, res) => {
-  
   await User.findByIdAndUpdate(req.user._id, {
     $set: {
       refreshToken: undefined,
@@ -169,4 +164,51 @@ export const logoutUser = asyncHandler(async (req, res) => {
     .clearCookie("accessToken", options)
     .clearCookie("refreshToken", options)
     .json({ message: "user logout successfully" });
+});
+
+export const refreshAccessToken = asyncHandler(async (req, res) => {
+  try {
+    const incoimgRefreshToken = req.cookies.refreshToken || req.body.refreshToken;
+
+    if (!incoimgRefreshToken) {
+      res.status(401).json({ message: "unauthorized Request..!" });
+    }
+  
+    const decodedToken = jwt.verify(
+      incoimgRefreshToken,
+      process.env.REFRESH_TOKEN_SECREAT
+    );
+  
+    const user = await User.findById(decodedToken?._id);
+    if (!user) {
+      res.status(401).json({ message: "Inavalid refrsh token.!" });
+    }
+  
+    if (incoimgRefreshToken != user.refreshToken) {
+      res.status(401).json({ message: "Refresh token is used or expire" });
+    }
+  
+    const options = {
+      httpOnly: true,
+      secure: true,
+    };
+    const { accessToken, refreshToken } =
+      await generateAccessTokenAndRefreshToken(user._id);
+    return res
+      .status(200)
+      .cookie("accessToken", accessToken, options)
+      .cookie("refreshToken", newRefreshToken, options)
+      .json(
+        new APIResponse(
+          200,
+          {
+            accessToken,
+            refreshToken: newRefreshToken,
+          },
+          "access token refreshed"
+        )
+      );  
+  } catch (error) {
+    res.status(500).json({ message:"Internal server error" });
+  }
 });
