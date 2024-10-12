@@ -168,26 +168,27 @@ export const logoutUser = asyncHandler(async (req, res) => {
 
 export const refreshAccessToken = asyncHandler(async (req, res) => {
   try {
-    const incoimgRefreshToken = req.cookies.refreshToken || req.body.refreshToken;
+    const incoimgRefreshToken =
+      req.cookies.refreshToken || req.body.refreshToken;
 
     if (!incoimgRefreshToken) {
       res.status(401).json({ message: "unauthorized Request..!" });
     }
-  
+
     const decodedToken = jwt.verify(
       incoimgRefreshToken,
       process.env.REFRESH_TOKEN_SECREAT
     );
-  
+
     const user = await User.findById(decodedToken?._id);
     if (!user) {
       res.status(401).json({ message: "Inavalid refrsh token.!" });
     }
-  
+
     if (incoimgRefreshToken != user.refreshToken) {
       res.status(401).json({ message: "Refresh token is used or expire" });
     }
-  
+
     const options = {
       httpOnly: true,
       secure: true,
@@ -197,18 +198,154 @@ export const refreshAccessToken = asyncHandler(async (req, res) => {
     return res
       .status(200)
       .cookie("accessToken", accessToken, options)
-      .cookie("refreshToken", newRefreshToken, options)
+      .cookie("refreshToken", refreshToken, options)
       .json(
         new APIResponse(
           200,
           {
             accessToken,
-            refreshToken: newRefreshToken,
+            refreshToken,
           },
           "access token refreshed"
         )
-      );  
+      );
   } catch (error) {
-    res.status(500).json({ message:"Internal server error" });
+    res.status(500).json({ message: "Internal server error" });
   }
 });
+
+export const resetUserPassword = asyncHandler(async (req, res) => {
+  try {
+    const { oldPassword, newPassword } = req.body;
+    const user = await User.findById(req.user?._id);
+    const isPasswordCorrect = await user.isPasswordCorrect(oldPassword);
+    if (!isPasswordCorrect) {
+      return res.status(400).json({
+        message: "password is not correct",
+        success: false,
+      });
+    }
+    user.password = newPassword;
+    await user.save({ validateBeforeSave: false });
+    res.status(200).json({
+      message: "password changes successfully",
+      success: true,
+    });
+  } catch (error) {
+    console.log(error);
+    res
+      .status(500)
+      .json({ message: "internal server error", success: false, error });
+  }
+});
+
+export const updateAccountDetails = asyncHandler(async (req, res) => {
+  try {
+    const { fullName, email } = req.body;
+    if (!fullName || !email) {
+      res.status(400).jon({
+        message: "All fields are required",
+      });
+    }
+    const user = await findByIdAndUpdate(
+      req.user?._id,
+      {
+        $set: {
+          fullName,
+          email,
+        },
+      },
+      { new: true }
+    ).select("-password");
+
+    return res.status(200).json({
+      message: "Profile updated successfully",
+      user,
+      success: true,
+    });
+  } catch (error) {
+    console.log(error);
+    res.status(500).json({
+      mesage: "internal server error",
+      success: false,
+      error,
+    });
+  }
+});
+
+export const updateAvatar = asyncHandler(async (req, res) => {
+  try {
+    const avatarLocalPath = req.file?.path;
+    if (!avatarLocalPath) {
+      return res.status(400).json({
+        message: "avatar is not provided",
+      });
+    }
+    const avatar = await uploadOnCloudinary(avatarLocalPath);
+    if (!avatar.url) {
+      res.status(400).json({
+        message: "Avtar file is not uplaoded in cloudinary",
+      });
+    }
+
+    const user = await findByIdAndUpdate(
+      req.user?._id,
+      {
+        $set: {
+          avatar: avatar.url,
+        },
+      },
+      { new: true }
+    ).select("-password");
+    return res.status(200).json({
+      mesage: "Avatar is updated successfully",
+      success: true,
+      user,
+    });
+  } catch (error) {
+    console.log(error);
+    res.status(500).json({
+      mesage: "Internal server error",
+      success: false,
+    });
+  }
+});
+
+export const updateCoverImage = asyncHandler(async (req, res) => {
+  try {
+    const coverImageLocalPath = req.file?.path;
+    if (!coverImageLocalPath) {
+      return res.status(400).json({
+        message: "cover image is not provided",
+      });
+    }
+    const coverImage = await uploadOnCloudinary(coverImageLocalPath);
+    if (!coverImage.url) {
+      res.status(400).json({
+        message: "Avtar file is not uplaoded in cloudinary",
+      });
+    }
+
+    const user = await findByIdAndUpdate(
+      req.user?._id,
+      {
+        $set: {
+          coverImage: coverImage.url,
+        },
+      },
+      { new: true }
+    ).select("-password");
+    return res.status(200).json({
+      mesage: "cover Image is updated successfully",
+      success: true,
+      user,
+    });
+  } catch (error) {
+    console.log(error);
+    res.status(500).json({
+      mesage: "Internal server error",
+      success: false,
+    });
+  }
+});
+
